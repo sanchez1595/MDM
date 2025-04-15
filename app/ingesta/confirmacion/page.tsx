@@ -28,7 +28,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ArrowRight, ArrowLeft, CheckCircle, Database, Home, Calendar, Tag, Clock, FileCheck, Download, FileSpreadsheet, FileText } from "lucide-react"
+import { ArrowRight, ArrowLeft, CheckCircle, Database, Home, Calendar, Tag, Clock, FileCheck, Download, FileSpreadsheet, FileText, AlertCircle, AlertTriangle, Filter } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
@@ -40,6 +40,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 
 // Datos de ejemplo para el resumen
 const summaryData = {
@@ -84,7 +92,77 @@ const summaryData = {
       hemoglobina: "10.8", 
       leucocitos: "7200" 
     },
-  ]
+  ],
+  // Datos validados y con errores para la nueva tabla
+  validationResults: {
+    validRecords: 1152,
+    invalidRecords: 35,
+    validData: [
+      { 
+        id_paciente: "PAC001", 
+        nombre: "Juan Pérez", 
+        edad: "65", 
+        tipo_cancer: "Pulmón", 
+        estadio: "III", 
+        fecha_diagnostico: "2023-10-15", 
+        hemoglobina: "9.5", 
+        leucocitos: "12000" 
+      },
+      { 
+        id_paciente: "PAC002", 
+        nombre: "María López", 
+        edad: "58", 
+        tipo_cancer: "Mama", 
+        estadio: "II", 
+        fecha_diagnostico: "2023-11-22", 
+        hemoglobina: "11.2", 
+        leucocitos: "8500" 
+      },
+    ],
+    invalidData: [
+      { 
+        id_paciente: "PAC004", 
+        nombre: "Ana Gómez", 
+        edad: "", 
+        tipo_cancer: "Colon", 
+        estadio: "IV", 
+        fecha_diagnostico: "2023-08-30", 
+        hemoglobina: "8.7", 
+        leucocitos: "15000",
+        errorDetails: [
+          { campo: "edad", valor: "", tipoError: "Valor vacío", severidad: "Alta" }
+        ]
+      },
+      { 
+        id_paciente: "PAC005", 
+        nombre: "Roberto Sánchez", 
+        edad: "x", 
+        tipo_cancer: "Hígado", 
+        estadio: "II", 
+        fecha_diagnostico: "2023-04-18", 
+        hemoglobina: "abc", 
+        leucocitos: "9300",
+        errorDetails: [
+          { campo: "edad", valor: "x", tipoError: "Formato inválido", severidad: "Alta" },
+          { campo: "hemoglobina", valor: "abc", tipoError: "Formato inválido", severidad: "Media" }
+        ]
+      },
+      { 
+        id_paciente: "PAC001", 
+        nombre: "Martín García", 
+        edad: "62", 
+        tipo_cancer: "Pulmón", 
+        estadio: "II", 
+        fecha_diagnostico: "2023-12-05", 
+        hemoglobina: "10.3", 
+        leucocitos: "200000",
+        errorDetails: [
+          { campo: "id_paciente", valor: "PAC001", tipoError: "Valor duplicado", severidad: "Alta" },
+          { campo: "leucocitos", valor: "200000", tipoError: "Fuera de rango", severidad: "Media" }
+        ]
+      }
+    ]
+  }
 }
 
 export default function ConfirmacionGuardado() {
@@ -95,10 +173,12 @@ export default function ConfirmacionGuardado() {
   const [isSaving, setIsSaving] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isDownloading, setIsDownloading] = useState<string | null>(null)
+  const [selectedTab, setSelectedTab] = useState("todos")
+  const [overwriteData, setOverwriteData] = useState(false)
   
   // Ir al paso anterior
   const handleBack = () => {
-    router.push("/ingesta/validacion")
+    router.push("/ingesta/mapeo-campos")
   }
 
   // Ir al dashboard
@@ -180,49 +260,85 @@ export default function ConfirmacionGuardado() {
     }, 1500)
   }
 
+  // Descargar solo los datos válidos
+  const handleDownloadValidData = () => {
+    setIsDownloading('valid')
+    
+    setTimeout(() => {
+      toast({
+        title: "Datos válidos descargados",
+        description: "El archivo con los datos que pasaron la validación ha sido descargado.",
+      })
+      
+      setIsDownloading(null)
+    }, 1500)
+  }
+
+  // Descargar solo los datos con errores
+  const handleDownloadInvalidData = () => {
+    setIsDownloading('invalid')
+    
+    setTimeout(() => {
+      toast({
+        title: "Datos con errores descargados",
+        description: "El archivo con los datos que no pasaron la validación ha sido descargado.",
+      })
+      
+      setIsDownloading(null)
+    }, 1500)
+  }
+
+  // Descargar reporte completo
+  const handleDownloadFullReport = () => {
+    setIsDownloading('report')
+    
+    setTimeout(() => {
+      toast({
+        title: "Reporte completo descargado",
+        description: "El reporte completo de validación ha sido descargado.",
+      })
+      
+      setIsDownloading(null)
+    }, 1500)
+  }
+
+  // Obtener el color para el tipo de error
+  const getErrorBadgeVariant = (errorType: string) => {
+    switch(errorType) {
+      case "Formato inválido":
+        return "destructive"
+      case "Valor vacío":
+        return "outline"
+      case "Fuera de rango":
+        return "warning"
+      case "Valor duplicado":
+        return "secondary"
+      default:
+        return "secondary"
+    }
+  }
+
+  // Obtener el icono para el tipo de error
+  const getErrorIcon = (errorType: string) => {
+    switch(errorType) {
+      case "Formato inválido":
+        return <AlertCircle className="h-3 w-3" />
+      case "Valor vacío": 
+        return <AlertCircle className="h-3 w-3" />
+      case "Fuera de rango":
+        return <AlertTriangle className="h-3 w-3" />
+      case "Valor duplicado":
+        return <Filter className="h-3 w-3" />
+      default:
+        return <AlertCircle className="h-3 w-3" />
+    }
+  }
+
   return (
     <div className="py-6">
       <Toaster />
-      <div className="flex items-center justify-between mb-6">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta">Ingesta de Datos</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta/seleccion-template">Selección de Template</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta/seleccion-fuente">Selección de Fuente</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta/configuracion-archivo">Configuración de Archivo</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta/mapeo-campos">Definición de Campos</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink href="/ingesta/validacion">Validación de Datos</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Confirmación y Guardado</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </div>
-      
       {/* Barra de progreso */}
-      <div className="mb-8">
+      <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">Progreso</span>
           <span className="text-sm text-muted-foreground">Paso 6 de 6</span>
@@ -233,100 +349,82 @@ export default function ConfirmacionGuardado() {
       </div>
 
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Confirmación y Guardado</h1>
-          <p className="text-muted-foreground">Revisa y confirma los datos antes de guardarlos en la base de datos</p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Confirmación y Guardado</h1>
+            <p className="text-muted-foreground">Revisa y confirma los datos antes de guardarlos en la base de datos</p>
+          </div>
         </div>
 
-        {/* Mensaje de éxito */}
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="rounded-full bg-green-100 p-3">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold text-green-800">¡Proceso completado con éxito!</h2>
-                <p className="text-green-700 mt-1">
-                  Se han procesado y validado <span className="font-bold">{summaryData.totalRecords}</span> registros que están listos para ser guardados.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Resumen y opciones */}
-        <div className="grid md:grid-cols-3 gap-6">
-          {/* Resumen del dataset */}
+        {/* Contenido principal */}
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Panel principal - Resumen y vista previa de datos */}
           <Card className="md:col-span-2">
             <CardHeader>
-              <CardTitle>Resumen del Dataset</CardTitle>
+              <CardTitle>Resumen de Datos</CardTitle>
               <CardDescription>
-                Información general sobre los datos a guardar
+                Detalles del conjunto de datos que se guardará
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                {/* Información general */}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Nombre del Dataset</Label>
-                    <div className="font-medium flex items-center gap-2">
-                      <Database className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-muted-foreground text-xs">Nombre del dataset</Label>
+                    <div className="font-medium">
                       {summaryData.datasetName}
                     </div>
                   </div>
                   
                   <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Versión Actual</Label>
+                    <Label className="text-muted-foreground text-xs">Versión</Label>
                     <div className="font-medium flex items-center gap-2">
                       <Tag className="h-4 w-4 text-muted-foreground" />
-                      {summaryData.currentVersion}
-                      {createNewVersion && (
-                        <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700 border-blue-200">
-                          Nueva: {summaryData.newVersion}
+                      {createNewVersion ? summaryData.newVersion : summaryData.currentVersion} {createNewVersion && (
+                        <Badge variant="outline" className="text-xs">
+                          Nueva
                         </Badge>
                       )}
                     </div>
                   </div>
                   
                   <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Fecha</Label>
-                    <div className="font-medium flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      {summaryData.date}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Hora</Label>
-                    <div className="font-medium flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {summaryData.time}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Estado</Label>
+                    <Label className="text-muted-foreground text-xs">Registros Totales</Label>
                     <div className="font-medium">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {summaryData.status}
+                      {summaryData.totalRecords}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-muted-foreground text-xs">Validación</Label>
+                    <div className="font-medium flex items-center gap-2">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        <span>{summaryData.validationResults.validRecords} válidos</span>
                       </Badge>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs">Fuente de Datos</Label>
-                    <div className="font-medium">
-                      {summaryData.source}
+                      {summaryData.validationResults.invalidRecords > 0 && (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          <span>{summaryData.validationResults.invalidRecords} con errores</span>
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
                 
                 <Separator />
                 
+                {/* Vista previa de datos */}
                 <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <Label className="text-muted-foreground text-xs">Vista previa de datos</Label>
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-5 w-5 text-primary" />
+                      <div>
+                        <h3 className="font-semibold">Vista previa de datos</h3>
+                        <p className="text-xs text-muted-foreground">Resultados de validación</p>
+                      </div>
+                    </div>
                     
                     {/* Opciones de descarga */}
                     <DropdownMenu>
@@ -338,247 +436,332 @@ export default function ConfirmacionGuardado() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
-                          onClick={handleDownloadCSV}
+                          onClick={handleDownloadValidData}
                           disabled={isDownloading !== null}
                           className="flex items-center gap-2"
                         >
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          {isDownloading === 'csv' ? 'Descargando CSV...' : 'Descargar como CSV'}
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          {isDownloading === 'valid' ? 'Descargando...' : 'Descargar datos válidos'}
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={handleDownloadExcel}
+                          onClick={handleDownloadInvalidData}
+                          disabled={isDownloading !== null || summaryData.validationResults.invalidRecords === 0}
+                          className="flex items-center gap-2"
+                        >
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                          {isDownloading === 'invalid' ? 'Descargando...' : 'Descargar datos con errores'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={handleDownloadFullReport}
                           disabled={isDownloading !== null}
                           className="flex items-center gap-2"
                         >
                           <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                          {isDownloading === 'excel' ? 'Descargando Excel...' : 'Descargar como Excel'}
+                          {isDownloading === 'report' ? 'Descargando...' : 'Descargar reporte completo'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                   
-                  <div className="border rounded-md overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          {Object.keys(summaryData.dataPreview[0]).map((key) => (
-                            <TableHead key={key} className="bg-muted/50">
-                              {key}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {summaryData.dataPreview.map((row, index) => (
-                          <TableRow key={index}>
-                            {Object.values(row).map((value, i) => (
-                              <TableCell key={i}>{value}</TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="mt-2 text-xs text-muted-foreground">
-                    Mostrando 3 de {summaryData.totalRecords} registros
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* Opciones de guardado */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Opciones de Guardado</CardTitle>
-              <CardDescription>
-                Configura cómo se guardarán los datos
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start space-x-2">
-                <Checkbox 
-                  id="create-version" 
-                  checked={createNewVersion}
-                  onCheckedChange={(checked) => setCreateNewVersion(!!checked)}
-                  disabled={isSaved}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="create-version"
-                    className={isSaved ? "text-muted-foreground" : ""}
-                  >
-                    Crear nueva versión del dataset
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Se creará la versión {summaryData.newVersion} manteniendo la versión actual como histórico
-                  </p>
-                </div>
-              </div>
-              
-              {/* Opción para guardar como template */}
-              <div className="flex items-start space-x-2 pt-2">
-                <Checkbox 
-                  id="save-template" 
-                  checked={saveAsTemplate}
-                  onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
-                  disabled={isSaved}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="save-template"
-                    className={isSaved ? "text-muted-foreground" : ""}
-                  >
-                    Guardar como template
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Guarda esta configuración como template para reutilizarla en futuras ingestas
-                  </p>
-                </div>
-              </div>
-              
-              {/* Campo para nombre del template */}
-              {saveAsTemplate && !isSaved && (
-                <div className="ml-6 mt-2">
-                  <Label htmlFor="template-name" className="text-sm mb-1.5 block">
-                    Nombre del template
-                  </Label>
-                  <input
-                    id="template-name"
-                    type="text"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="Ej: Template Análisis Sangre Oncológico"
-                    className="w-full p-2 text-sm border rounded-md"
-                  />
-                </div>
-              )}
-              
-              <div className="pt-4 space-y-2">
-                <Label className="text-muted-foreground text-xs">Resumen</Label>
-                <div className="bg-muted/30 p-3 rounded-md space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Total de registros:</span>
-                    <span className="font-medium">{summaryData.totalRecords}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Campos:</span>
-                    <span className="font-medium">{summaryData.fields}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Validación:</span>
-                    <span className="font-medium text-green-600">Completada</span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Opciones de exportación */}
-              <div className="pt-4 space-y-2">
-                <Label className="text-muted-foreground text-xs">Exportar datos</Label>
-                <div className="flex flex-col gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full justify-start gap-2"
-                    onClick={handleDownloadCSV}
-                    disabled={isDownloading !== null}
-                  >
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    {isDownloading === 'csv' ? 'Descargando CSV...' : 'Descargar como CSV'}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full justify-start gap-2"
-                    onClick={handleDownloadExcel}
-                    disabled={isDownloading !== null}
-                  >
-                    <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                    {isDownloading === 'excel' ? 'Descargando Excel...' : 'Descargar como Excel'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col gap-2">
-              {!isSaved ? (
-                <Button 
-                  onClick={handleSaveData} 
-                  className="w-full gap-2"
-                  disabled={isSaving || (saveAsTemplate && !templateName)}
-                >
-                  {isSaving ? (
-                    <>Guardando datos...</>
-                  ) : (
-                    <>
-                      <Database className="h-4 w-4" />
-                      Guardar Datos en BD
-                    </>
-                  )}
-                </Button>
-              ) : (
-                <div className="w-full space-y-3">
-                  <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-md">
-                    <FileCheck className="h-5 w-5" />
-                    <span className="font-medium">
-                      Datos guardados correctamente
-                      {saveAsTemplate && templateName && (
-                        <span className="block text-sm font-normal mt-1">
-                          Template "{templateName}" guardado con éxito
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <Button 
-                    onClick={handleGoToDashboard} 
-                    className="w-full gap-2"
-                  >
-                    <Home className="h-4 w-4" />
-                    Ir al Dashboard
-                  </Button>
-                </div>
-              )}
-            </CardFooter>
-          </Card>
-        </div>
+                  <Tabs defaultValue="todos" value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+                    <TabsList className="mb-2">
+                      <TabsTrigger value="todos">Todos los datos</TabsTrigger>
+                      <TabsTrigger value="validos" className="flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Válidos ({summaryData.validationResults.validRecords})
+                      </TabsTrigger>
+                      <TabsTrigger value="errores" className="flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        Con errores ({summaryData.validationResults.invalidRecords})
+                      </TabsTrigger>
+                    </TabsList>
 
-        {/* Botones de navegación */}
-        <div className="flex justify-between mt-4">
-          <Button 
-            variant="outline" 
-            onClick={handleBack} 
-            className="gap-2"
-            disabled={isSaved}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Anterior
-          </Button>
+                    {/* Resto del contenido de las pestañas permanece igual */}
+                    <TabsContent value="todos" className="border rounded-md overflow-hidden">
+                      <ScrollArea className="h-[350px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {Object.keys(summaryData.dataPreview[0]).map((key) => (
+                                <TableHead key={key} className="bg-muted/50">
+                                  {key}
+                                </TableHead>
+                              ))}
+                              <TableHead className="bg-muted/50 text-right">Estado</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {summaryData.dataPreview.map((row, index) => (
+                              <TableRow key={index}>
+                                {Object.values(row).map((value, i) => (
+                                  <TableCell key={i}>{value}</TableCell>
+                                ))}
+                                <TableCell className="text-right">
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    Válido
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {/* Mostrar algunos datos con errores */}
+                            {summaryData.validationResults.invalidData.slice(0, 2).map((row, index) => (
+                              <TableRow key={`error-${index}`} className="bg-red-50/30">
+                                {Object.entries(row).map(([key, value], i) => {
+                                  if (key !== 'errorDetails') {
+                                    // Verifica si hay errores para esta columna
+                                    const hasError = row.errorDetails && row.errorDetails.some(err => err.campo === key);
+                                    
+                                    return (
+                                      <TableCell key={i} className={hasError ? "text-destructive" : ""}>
+                                        {value as string}
+                                      </TableCell>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                                <TableCell className="text-right">
+                                  <Badge variant="destructive">
+                                    Con errores
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                      <div className="p-2 text-xs text-muted-foreground border-t">
+                        Mostrando 5 de {summaryData.totalRecords} registros
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="validos" className="border rounded-md overflow-hidden">
+                      {/* Contenido de pestaña Válidos */}
+                      <ScrollArea className="h-[350px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {Object.keys(summaryData.validationResults.validData[0]).map((key) => (
+                                <TableHead key={key} className="bg-muted/50">
+                                  {key}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {summaryData.validationResults.validData.map((row, index) => (
+                              <TableRow key={index}>
+                                {Object.values(row).map((value, i) => (
+                                  <TableCell key={i}>{value}</TableCell>
+                                ))}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                      <div className="p-2 text-xs text-muted-foreground border-t">
+                        Mostrando 2 de {summaryData.validationResults.validRecords} registros válidos
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="errores" className="border rounded-md overflow-hidden">
+                      {/* Contenido de pestaña Errores */}
+                      <ScrollArea className="h-[350px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {Object.keys(summaryData.validationResults.invalidData[0])
+                                .filter(key => key !== 'errorDetails')
+                                .map((key) => (
+                                  <TableHead key={key} className="bg-muted/50">
+                                    {key}
+                                  </TableHead>
+                              ))}
+                              <TableHead className="bg-muted/50 text-right">Errores</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {summaryData.validationResults.invalidData.map((row, index) => (
+                              <TableRow key={index} className="bg-red-50/30">
+                                {Object.entries(row).map(([key, value], i) => {
+                                  if (key !== 'errorDetails') {
+                                    // Verifica si hay errores para esta columna
+                                    const hasError = row.errorDetails && row.errorDetails.some(err => err.campo === key);
+                                    
+                                    return (
+                                      <TableCell key={i} className={hasError ? "text-destructive font-medium" : ""}>
+                                        {value as string}
+                                      </TableCell>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                                <TableCell className="text-right">
+                                  <div className="flex flex-wrap gap-1 justify-end">
+                                    {row.errorDetails && row.errorDetails.map((error, errIndex) => (
+                                      <Badge 
+                                        key={errIndex} 
+                                        variant={getErrorBadgeVariant(error.tipoError)} 
+                                        className="flex items-center gap-1 text-xs"
+                                        title={`Campo: ${error.campo}, Valor: ${error.valor}`}
+                                      >
+                                        {getErrorIcon(error.tipoError)}
+                                        <span>{error.tipoError}</span>
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                      <div className="p-2 text-xs text-muted-foreground border-t">
+                        Mostrando {summaryData.validationResults.invalidData.length} de {summaryData.validationResults.invalidRecords} registros con errores
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           
-          {!isSaved && (
-            <Button 
-              onClick={handleSaveData} 
-              className="gap-2"
-              disabled={isSaving || (saveAsTemplate && !templateName)}
-            >
-              {isSaving ? (
-                <>Guardando...</>
-              ) : (
-                <>
-                  Finalizar
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          )}
-          
-          {isSaved && (
-            <Button 
-              onClick={handleGoToDashboard} 
-              className="gap-2"
-            >
-              Ir al Dashboard
-              <Home className="h-4 w-4" />
-            </Button>
-          )}
+          {/* Panel lateral - Opciones de guardado y exportación */}
+          <div className="space-y-6">
+            {/* Estado de la operación */}
+            {isSaved ? (
+              <Card className="bg-green-50 border-green-200">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="rounded-full bg-green-100 p-3">
+                      <FileCheck className="h-8 w-8 text-green-600" />
+                    </div>
+                    <div className="text-center">
+                      <h2 className="text-xl font-semibold text-green-800">¡Datos guardados!</h2>
+                      <p className="text-green-700 mt-1">
+                        Los datos han sido guardados correctamente
+                        {saveAsTemplate && templateName && (
+                          <span className="block font-medium mt-1">
+                            Template "{templateName}" guardado con éxito
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={handleGoToDashboard} 
+                      className="w-full gap-2 mt-2"
+                    >
+                      <Home className="h-4 w-4" />
+                      Ir al Dashboard
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    Opciones de Guardado
+                  </CardTitle>
+                  <CardDescription>
+                    Configura cómo se guardarán los datos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex items-start space-x-2">
+                    <Checkbox 
+                      id="create-version" 
+                      checked={createNewVersion}
+                      onCheckedChange={(checked) => setCreateNewVersion(!!checked)}
+                    />
+                    <div className="grid gap-1 leading-none">
+                      <Label htmlFor="create-version">
+                        Crear nueva versión del dataset
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Versión {summaryData.newVersion} (actual: {summaryData.currentVersion})
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="overwrite-toggle">
+                        {overwriteData ? "Sobrescribir datos existentes" : "Agregar a datos existentes"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {overwriteData 
+                          ? "Los datos nuevos reemplazarán a los existentes" 
+                          : "Los datos nuevos se añadirán a los existentes"}
+                      </p>
+                    </div>
+                    <Switch
+                      id="overwrite-toggle"
+                      checked={overwriteData}
+                      onCheckedChange={setOverwriteData}
+                    />
+                  </div>
+                  
+                  <div className="flex items-start space-x-2">
+                    <Checkbox 
+                      id="save-template" 
+                      checked={saveAsTemplate}
+                      onCheckedChange={(checked) => setSaveAsTemplate(!!checked)}
+                    />
+                    <div className="grid gap-1 leading-none">
+                      <Label htmlFor="save-template">
+                        Guardar como template
+                      </Label>
+                      <p className="text-sm text-muted-foreground">
+                        Para reutilizar en futuras ingestas
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {saveAsTemplate && (
+                    <div className="ml-6 mt-2">
+                      <Label htmlFor="template-name" className="text-sm mb-1.5 block">
+                        Nombre del template
+                      </Label>
+                      <input
+                        id="template-name"
+                        type="text"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="Ej: Template Análisis Sangre Oncológico"
+                        className="w-full p-2 text-sm border rounded-md focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="flex-col gap-2">
+                  <Button 
+                    onClick={handleSaveData} 
+                    className="w-full gap-2"
+                    disabled={isSaving || (saveAsTemplate && !templateName)}
+                  >
+                    {isSaving ? (
+                      <>Guardando datos...</>
+                    ) : (
+                      <>
+                        <Database className="h-4 w-4" />
+                        Guardar Datos en BD
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={handleGoToDashboard} 
+                    className="w-full gap-2 mt-2"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -29,7 +29,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ArrowRight, ArrowLeft, AlertCircle, CheckCircle, XCircle, AlertTriangle, Edit, ChevronLeft, ChevronRight, Search, Wand2 } from "lucide-react"
+import { ArrowRight, ArrowLeft, AlertCircle, CheckCircle, XCircle, AlertTriangle, Edit, ChevronLeft, ChevronRight, Search, Wand2, Download, FileSpreadsheet, FileDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -64,6 +64,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 // Datos de ejemplo para la validación
 const validationSummary = {
@@ -117,11 +126,10 @@ export default function ValidacionDatos() {
   const [itemsPerPage, setItemsPerPage] = useState(5)
   const [filterType, setFilterType] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [editingError, setEditingError] = useState<any>(null)
-  const [editedValue, setEditedValue] = useState("")
   const [validationSummaryState, setValidationSummaryState] = useState(validationSummary)
   const [validationErrorsState, setValidationErrorsState] = useState(validationErrors)
   const [isFixingAll, setIsFixingAll] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
   
   // Filtrar errores según el tipo y búsqueda
   const filteredErrors = validationErrorsState.filter(error => {
@@ -151,19 +159,6 @@ export default function ValidacionDatos() {
   // Ir al siguiente paso
   const handleNext = () => {
     router.push("/ingesta/confirmacion")
-  }
-  
-  // Abrir diálogo de edición
-  const handleEditError = (error: any) => {
-    setEditingError(error)
-    setEditedValue(error.value)
-  }
-  
-  // Guardar corrección
-  const handleSaveCorrection = () => {
-    // Aquí se implementaría la lógica para guardar la corrección
-    // Por ahora solo cerramos el diálogo
-    setEditingError(null)
   }
   
   // Calcular el porcentaje de filas válidas
@@ -196,8 +191,219 @@ export default function ValidacionDatos() {
     }, 1500)
   }
 
+  // Función para convertir los datos a formato CSV para Excel
+  const convertToCSV = (data: any[], headers: string[]): string => {
+    // Agregamos la fila de encabezados
+    let csv = headers.join(',') + '\n';
+    
+    // Añadimos cada fila de datos
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header.toLowerCase().replace(/ /g, '_')] || '';
+        // Escapamos comillas y envolvemos en comillas si es necesario
+        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      });
+      csv += values.join(',') + '\n';
+    });
+    
+    return csv;
+  }
+
+  // Función para descargar CSV
+  const downloadCSV = (csv: string, filename: string): void => {
+    // Creamos un objeto Blob con el contenido CSV
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    
+    // Creamos un URL para el blob
+    const url = URL.createObjectURL(blob);
+    
+    // Creamos un elemento de enlace para descargar
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    
+    // Añadimos el enlace al DOM, hacemos clic y luego lo eliminamos
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Descargar datos validados
+  const handleDownloadValidData = () => {
+    setIsDownloading(true);
+    
+    try {
+      // Simulamos obtener los datos validados (en una app real, estos vendrían de la API)
+      const validatedData = [
+        {
+          id_paciente: "PAC001",
+          nombre: "Juan Pérez",
+          edad: "65",
+          tipo_cancer: "Pulmón",
+          estadio: "III",
+          fecha_diagnostico: "2023-10-15",
+          hemoglobina: "9.5",
+          leucocitos: "12000"
+        },
+        {
+          id_paciente: "PAC002",
+          nombre: "María López",
+          edad: "58",
+          tipo_cancer: "Mama",
+          estadio: "II",
+          fecha_diagnostico: "2023-11-22",
+          hemoglobina: "11.2",
+          leucocitos: "8500"
+        },
+        // Más datos aquí...
+      ];
+      
+      const headers = ["ID_Paciente", "Nombre", "Edad", "Tipo_Cancer", "Estadio", "Fecha_Diagnostico", "Hemoglobina", "Leucocitos"];
+      const csv = convertToCSV(validatedData, headers);
+      
+      // Generamos un nombre de archivo basado en la fecha actual
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `datos_validados_${timestamp}.csv`;
+      
+      // Descargamos el archivo
+      downloadCSV(csv, filename);
+      
+      toast({
+        title: "Descarga iniciada",
+        description: "Los datos validados se están descargando.",
+      });
+    } catch (error) {
+      console.error('Error al generar archivo CSV:', error);
+      toast({
+        title: "Error de descarga",
+        description: "No se pudo generar el archivo de datos validados.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Descargar datos con errores
+  const handleDownloadErrorData = () => {
+    setIsDownloading(true);
+    
+    try {
+      // Formateamos los errores para la descarga
+      const errorData = validationErrorsState.map(error => ({
+        fila: error.row.toString(),
+        columna: error.column,
+        valor_actual: error.value,
+        tipo_error: error.type,
+        mensaje: error.message,
+        criticidad: error.critical ? "Crítico" : "Advertencia"
+      }));
+      
+      const headers = ["Fila", "Columna", "Valor_Actual", "Tipo_Error", "Mensaje", "Criticidad"];
+      const csv = convertToCSV(errorData, headers);
+      
+      // Generamos un nombre de archivo basado en la fecha actual
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `errores_validacion_${timestamp}.csv`;
+      
+      // Descargamos el archivo
+      downloadCSV(csv, filename);
+      
+      toast({
+        title: "Descarga iniciada",
+        description: "Los datos con errores se están descargando.",
+      });
+    } catch (error) {
+      console.error('Error al generar archivo CSV:', error);
+      toast({
+        title: "Error de descarga",
+        description: "No se pudo generar el archivo de errores.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Descargar informe completo
+  const handleDownloadFullReport = () => {
+    setIsDownloading(true);
+    
+    try {
+      // Creamos un informe que combina el resumen y los errores detallados
+      const summaryData = [
+        {
+          total_registros: validationSummaryState.totalRows.toString(),
+          registros_validos: validationSummaryState.validRows.toString(),
+          registros_con_errores: validationSummaryState.rowsWithErrors.toString(),
+          errores_criticos: validationSummaryState.criticalErrors.toString(),
+          advertencias: validationSummaryState.warningCount.toString(),
+          porcentaje_valido: `${validPercentage}%`
+        }
+      ];
+      
+      // Primero generamos el resumen
+      const summaryHeaders = ["Total_Registros", "Registros_Validos", "Registros_Con_Errores", "Errores_Criticos", "Advertencias", "Porcentaje_Valido"];
+      let csv = "RESUMEN DE VALIDACIÓN\n";
+      csv += convertToCSV(summaryData, summaryHeaders);
+      
+      // Añadimos una línea en blanco entre las secciones
+      csv += "\n\nERRORES POR TIPO\n";
+      
+      // Agregamos el desglose de errores por tipo
+      const errorTypeData = validationSummaryState.errorsByType.map(et => ({
+        tipo_error: et.type,
+        cantidad: et.count.toString(),
+        criticidad: et.critical ? "Crítico" : "Advertencia"
+      }));
+      
+      const errorTypeHeaders = ["Tipo_Error", "Cantidad", "Criticidad"];
+      csv += convertToCSV(errorTypeData, errorTypeHeaders);
+      
+      // Añadimos los errores detallados
+      csv += "\n\nDETALLE DE ERRORES\n";
+      const errorData = validationErrorsState.map(error => ({
+        fila: error.row.toString(),
+        columna: error.column,
+        valor_actual: error.value,
+        tipo_error: error.type,
+        mensaje: error.message,
+        criticidad: error.critical ? "Crítico" : "Advertencia"
+      }));
+      
+      const errorHeaders = ["Fila", "Columna", "Valor_Actual", "Tipo_Error", "Mensaje", "Criticidad"];
+      csv += convertToCSV(errorData, errorHeaders);
+      
+      // Generamos un nombre de archivo basado en la fecha actual
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `informe_completo_validacion_${timestamp}.csv`;
+      
+      // Descargamos el archivo
+      downloadCSV(csv, filename);
+      
+      toast({
+        title: "Descarga iniciada",
+        description: "El informe completo de validación se está descargando.",
+      });
+    } catch (error) {
+      console.error('Error al generar informe completo:', error);
+      toast({
+        title: "Error de descarga",
+        description: "No se pudo generar el informe completo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="py-6">
+      <Toaster />
+      
       <div className="flex items-center justify-between mb-6">
         <Breadcrumb>
           <BreadcrumbList>
@@ -247,34 +453,44 @@ export default function ValidacionDatos() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Validación de Datos</h1>
-            <p className="text-muted-foreground">Revisa y corrige los errores encontrados durante la validación</p>
+            <p className="text-muted-foreground">Revisa los errores encontrados durante la validación</p>
           </div>
           
-          {/* Botón para corregir todos los errores (solo para demo) */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="gap-2 border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800"
-                  onClick={handleFixAllErrors}
-                  disabled={isFixingAll || validationErrorsState.length === 0}
-                >
-                  {isFixingAll ? (
-                    <>Corrigiendo errores...</>
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Botón de descarga */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2" disabled={isDownloading}>
+                  {isDownloading ? (
+                    <div className="flex items-center gap-2">
+                      <span className="h-4 w-4 animate-spin">...</span>
+                      <span>Descargando...</span>
+                    </div>
                   ) : (
                     <>
-                      <Wand2 className="h-4 w-4" />
-                      Corregir todos los errores
+                      <Download className="h-4 w-4" />
+                      <span>Descargar</span>
                     </>
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Modo demo: Marca todos los errores como corregidos</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownloadValidData}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" />
+                  <span>Datos validados</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadErrorData} disabled={validationErrorsState.length === 0}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2 text-red-600" />
+                  <span>Datos con errores</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleDownloadFullReport}>
+                  <FileDown className="h-4 w-4 mr-2 text-blue-600" />
+                  <span>Informe completo</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Resumen de validación */}
@@ -400,25 +616,24 @@ export default function ValidacionDatos() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">Fila</TableHead>
-                    <TableHead className="w-[120px]">Columna</TableHead>
-                    <TableHead className="w-[120px]">Valor</TableHead>
-                    <TableHead className="w-[150px]">Tipo de Error</TableHead>
+                    <TableHead className="w-[80px] text-center">Fila</TableHead>
+                    <TableHead className="w-[150px]">Columna</TableHead>
+                    <TableHead className="w-[150px]">Valor</TableHead>
+                    <TableHead className="w-[180px]">Tipo de Error</TableHead>
                     <TableHead>Mensaje</TableHead>
-                    <TableHead className="w-[100px] text-right">Acción</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedErrors.length > 0 ? (
                     paginatedErrors.map((error) => (
                       <TableRow key={error.id}>
-                        <TableCell>{error.row}</TableCell>
+                        <TableCell className="text-center">{error.row}</TableCell>
                         <TableCell>{error.column}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {error.value === "" ? <span className="text-muted-foreground italic">(vacío)</span> : error.value}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center justify-center gap-1">
                             {error.critical ? (
                               <Badge variant="destructive" className="gap-1">
                                 <XCircle className="h-3 w-3" />
@@ -433,17 +648,6 @@ export default function ValidacionDatos() {
                           </div>
                         </TableCell>
                         <TableCell>{error.message}</TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 w-8 p-0" 
-                            onClick={() => handleEditError(error)}
-                          >
-                            <span className="sr-only">Editar</span>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
@@ -467,7 +671,7 @@ export default function ValidacionDatos() {
             {/* Paginación */}
             {filteredErrors.length > 0 && (
               <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground whitespace-nowrap min-w-[200px]">
                   Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredErrors.length)} de {filteredErrors.length} errores
                 </div>
                 
@@ -542,97 +746,17 @@ export default function ValidacionDatos() {
               </div>
             )}
           </CardContent>
-          
-          {hasCriticalErrors && (
-            <CardFooter className="bg-red-50 border-t border-red-100">
-              <div className="flex items-start gap-2 text-sm text-red-700">
-                <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium">Se encontraron errores críticos</p>
-                  <p className="mt-1">Debes corregir todos los errores críticos antes de continuar. Puedes corregirlos en línea o volver a la definición de campos para ajustar los parámetros.</p>
-                </div>
-              </div>
-            </CardFooter>
-          )}
         </Card>
         
-        {/* Diálogo de edición */}
-        <Dialog open={editingError !== null} onOpenChange={(open) => !open && setEditingError(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Corregir Error</DialogTitle>
-              <DialogDescription>
-                Edita el valor para corregir el error en la fila {editingError?.row}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground text-xs">Columna</Label>
-                  <div className="font-medium">{editingError?.column}</div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground text-xs">Tipo de Error</Label>
-                  <div className="font-medium">{editingError?.type}</div>
-                </div>
-              </div>
-              
-              <div>
-                <Label className="text-muted-foreground text-xs">Mensaje de Error</Label>
-                <div className="text-sm text-red-600">{editingError?.message}</div>
-              </div>
-              
-              <div>
-                <Label htmlFor="value">Valor Actual</Label>
-                <Input 
-                  id="value" 
-                  value={editedValue} 
-                  onChange={(e) => setEditedValue(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              
-              <div>
-                <Label className="text-muted-foreground text-xs">Contexto de la Fila</Label>
-                <div className="mt-1 border rounded-md p-3 bg-muted/20 text-sm">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {Object.entries(sampleRowData).map(([key, value]) => (
-                      <div key={key}>
-                        <span className="text-muted-foreground">{key}:</span>{" "}
-                        <span className={key === editingError?.column ? "font-medium text-red-600" : ""}>
-                          {value || <span className="italic text-muted-foreground">(vacío)</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingError(null)}>Cancelar</Button>
-              <Button onClick={handleSaveCorrection}>Guardar Corrección</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         {/* Botones de navegación */}
         <div className="flex justify-between mt-4">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Anterior
-            </Button>
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <Edit className="h-4 w-4" />
-              Modificar Definición de Campos
-            </Button>
-          </div>
+          <Button variant="outline" onClick={handleBack} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Anterior
+          </Button>
           <Button 
             onClick={handleNext} 
             className="gap-2"
-            disabled={hasCriticalErrors}
           >
             Siguiente
             <ArrowRight className="h-4 w-4" />

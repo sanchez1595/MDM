@@ -29,12 +29,21 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ArrowRight, ArrowLeft, FileUp, Upload, Database, FileText, CheckCircle } from "lucide-react"
+import { ArrowRight, ArrowLeft, FileUp, Upload, Database, FileText, CheckCircle, Home } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 // Datos de ejemplo para los templates
 const savedTemplates = [
@@ -138,6 +147,7 @@ export default function IngestaTemplate() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [processingProgress, setProcessingProgress] = useState(0)
   const [isProcessed, setIsProcessed] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   const { toast } = useToast()
   
   // Cargar el template seleccionado
@@ -167,38 +177,27 @@ export default function IngestaTemplate() {
   const handleProcessData = () => {
     if (!fileName) return
     
-    setIsProcessing(true)
-    setProcessingProgress(0)
+    // Mostrar diálogo de confirmación
+    setShowConfirmation(true)
+  }
+  
+  // Confirmar procesamiento
+  const handleConfirmProcess = () => {
+    setShowConfirmation(false)
     
-    // Simulación de procesamiento
-    const interval = setInterval(() => {
-      setProcessingProgress(prev => {
-        const newProgress = prev + 10
-        if (newProgress >= 100) {
-          clearInterval(interval)
-          setIsProcessing(false)
-          setIsProcessed(true)
-          
-          toast({
-            title: "Procesamiento completado",
-            description: "Los datos han sido procesados correctamente con el template seleccionado.",
-          })
-          
-          return 100
-        }
-        return newProgress
-      })
-    }, 500)
+    // Mostrar notificación y redireccionar directamente sin mostrar progreso
+    toast({
+      title: "Archivo en procesamiento",
+      description: "El archivo se está procesando en segundo plano. Te notificaremos cuando esté listo.",
+    })
+    
+    // Redireccionar al dashboard inmediatamente
+    router.push('/dashboard')
   }
   
   // Ir al paso anterior
   const handleBack = () => {
     router.push('/ingesta/seleccion-template')
-  }
-  
-  // Ir al siguiente paso
-  const handleNext = () => {
-    router.push('/ingesta/validacion')
   }
   
   if (!selectedTemplate) {
@@ -236,17 +235,6 @@ export default function IngestaTemplate() {
         </Breadcrumb>
       </div>
       
-      {/* Barra de progreso */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">Progreso</span>
-          <span className="text-sm text-muted-foreground">Paso 2 de 4</span>
-        </div>
-        <div className="w-full bg-muted rounded-full h-2.5">
-          <div className="bg-primary h-2.5 rounded-full" style={{ width: "50%" }}></div>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ingesta de Datos con Template</h1>
@@ -357,7 +345,6 @@ export default function IngestaTemplate() {
                         className="hidden" 
                         accept=".csv,.txt,.xls,.xlsx"
                         onChange={handleFileChange}
-                        disabled={isProcessing || isProcessed}
                       />
                       {fileName && (
                         <p className="text-sm font-medium mt-2">
@@ -378,52 +365,62 @@ export default function IngestaTemplate() {
               </TabsContent>
             </Tabs>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
-            {!isProcessed ? (
-              <Button 
-                onClick={handleProcessData} 
-                className="w-full"
-                disabled={!fileName || isProcessing}
-              >
-                {isProcessing ? "Procesando datos..." : "Procesar Datos"}
-              </Button>
-            ) : (
-              <div className="w-full flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded-md">
-                <CheckCircle className="h-5 w-5" />
-                <span className="font-medium">Datos procesados correctamente</span>
-              </div>
-            )}
-            
-            {isProcessing && (
-              <div className="w-full space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Procesando datos...</span>
-                  <span>{processingProgress}%</span>
-                </div>
-                <Progress value={processingProgress} className="h-2" />
-              </div>
-            )}
-          </CardFooter>
         </Card>
 
+        {/* Agregar el diálogo de confirmación */}
+        <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirmar Procesamiento</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas procesar el archivo <span className="font-medium">{fileName}</span> con el template <span className="font-medium">{selectedTemplate?.name}</span>?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="bg-muted/50 p-4 rounded-md">
+                <h4 className="font-medium mb-2">Resumen</h4>
+                <ul className="space-y-1 text-sm">
+                  <li className="flex justify-between">
+                    <span className="text-muted-foreground">Template:</span>
+                    <span>{selectedTemplate?.name}</span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span className="text-muted-foreground">Archivo:</span>
+                    <span>{fileName}</span>
+                  </li>
+                  <li className="flex justify-between">
+                    <span className="text-muted-foreground">Campos a procesar:</span>
+                    <span>{selectedTemplate?.fields}</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowConfirmation(false)}>Cancelar</Button>
+              <Button onClick={handleConfirmProcess}>Confirmar y Procesar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Botones de navegación */}
-        <div className="flex justify-between mt-4">
+        <div className="flex justify-between mt-6">
+          {/* Botón izquierdo: Anterior/Volver */}
           <Button 
             variant="outline" 
-            onClick={handleBack} 
-            className="gap-2"
-            disabled={isProcessing}
+            onClick={handleBack}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 mr-2" />
             Anterior
           </Button>
+          
+          {/* Botón derecho: Procesar Datos */}
           <Button 
-            onClick={handleNext} 
-            className="gap-2"
-            disabled={!isProcessed || isProcessing}
+            variant="default" 
+            onClick={handleProcessData}
+            disabled={!fileName}
           >
-            Siguiente
-            <ArrowRight className="h-4 w-4" />
+            <Upload className="h-4 w-4 mr-2" />
+            Procesar Datos
           </Button>
         </div>
       </div>

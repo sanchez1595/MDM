@@ -36,12 +36,14 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ArrowRight, ArrowLeft, AlertCircle, Check, Shield, Database, FileType, EyeOff, Save, Clock, XCircle } from "lucide-react"
+import { ArrowRight, ArrowLeft, AlertCircle, Check, Shield, Database, FileType, EyeOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 import {
   Dialog,
   DialogContent,
@@ -49,18 +51,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { toast } from "@/components/ui/use-toast"
-import { Toaster } from "@/components/ui/toaster"
 
 // Datos de ejemplo para la previsualización
 const sampleData = {
@@ -98,6 +89,7 @@ export default function DefinicionCampos() {
       range: "", 
       anonymize: false,
       omit: false,
+      allowNull: false,
       valid: true
     },
     { 
@@ -107,6 +99,7 @@ export default function DefinicionCampos() {
       range: "", 
       anonymize: true,
       omit: false,
+      allowNull: false,
       valid: true
     },
     { 
@@ -116,6 +109,7 @@ export default function DefinicionCampos() {
       range: "0-120", 
       anonymize: false,
       omit: false,
+      allowNull: false,
       valid: true
     },
     { 
@@ -125,6 +119,7 @@ export default function DefinicionCampos() {
       range: "", 
       anonymize: false,
       omit: false,
+      allowNull: true,
       valid: true
     },
     { 
@@ -134,6 +129,7 @@ export default function DefinicionCampos() {
       range: "0-IV", 
       anonymize: false,
       omit: false,
+      allowNull: true,
       valid: true
     },
     { 
@@ -143,6 +139,7 @@ export default function DefinicionCampos() {
       range: "", 
       anonymize: false,
       omit: false,
+      allowNull: false,
       valid: true
     },
     { 
@@ -152,6 +149,7 @@ export default function DefinicionCampos() {
       range: "0-20", 
       anonymize: false,
       omit: false,
+      allowNull: true,
       valid: true
     },
     { 
@@ -161,6 +159,7 @@ export default function DefinicionCampos() {
       range: "3000-15000", 
       anonymize: false,
       omit: false,
+      allowNull: true,
       valid: true
     },
   ])
@@ -169,10 +168,9 @@ export default function DefinicionCampos() {
   const [validationMessages, setValidationMessages] = useState<string[]>([])
   const [isMobile, setIsMobile] = useState(false)
   const [activeField, setActiveField] = useState<number | null>(null)
-  const [draftName, setDraftName] = useState("")
-  const [showDraftDialog, setShowDraftDialog] = useState(false)
-  const [savedDrafts, setSavedDrafts] = useState<{id: string, name: string, date: string, data: any}[]>([])
-  const [showLoadDraftDialog, setShowLoadDraftDialog] = useState(false)
+  const [fileName, setFileName] = useState("")
+  const [fileDescription, setFileDescription] = useState("")
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   
   // Detectar si es dispositivo móvil
   useEffect(() => {
@@ -186,23 +184,6 @@ export default function DefinicionCampos() {
     return () => {
       window.removeEventListener('resize', checkIfMobile)
     }
-  }, [])
-
-  // Cargar borradores guardados al iniciar
-  useEffect(() => {
-    const loadSavedDrafts = () => {
-      try {
-        const draftsJson = localStorage.getItem('fieldMappingDrafts')
-        if (draftsJson) {
-          const drafts = JSON.parse(draftsJson)
-          setSavedDrafts(drafts)
-        }
-      } catch (error) {
-        console.error('Error loading drafts:', error)
-      }
-    }
-    
-    loadSavedDrafts()
   }, [])
 
   // Cargar plantilla predefinida si se seleccionó en el paso anterior
@@ -241,7 +222,52 @@ export default function DefinicionCampos() {
 
   // Ir al siguiente paso
   const handleNext = () => {
-    router.push("/ingesta/validacion")
+    if (!fileName.trim()) {
+      toast({
+        title: "Nombre requerido",
+        description: "Por favor, proporciona un nombre para el archivo antes de continuar.",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    if (validationStatus === "error") {
+      toast({
+        title: "Validación requerida",
+        description: "Por favor, corrige los errores de validación antes de continuar.",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    // Mostrar diálogo de confirmación
+    setShowConfirmDialog(true)
+  }
+  
+  // Confirmar y continuar al siguiente paso
+  const handleConfirm = () => {
+    // Guardar información en localStorage para usar en el siguiente paso
+    try {
+      localStorage.setItem('fileMetadata', JSON.stringify({
+        name: fileName,
+        description: fileDescription,
+        fields: fieldDefinitions
+      }))
+    } catch (error) {
+      console.error('Error saving file metadata:', error)
+    }
+    
+    setShowConfirmDialog(false)
+    
+    // Mostrar mensaje de procesamiento
+    toast({
+      title: "Procesamiento iniciado",
+      description: `Estamos procesando la data de "${fileName}". Te notificaremos por correo cualquier novedad sobre el proceso.`,
+      duration: 5000,
+    })
+    
+    // Redirigir al dashboard
+    router.push("/dashboard")
   }
 
   // Actualizar el nombre interno de un campo
@@ -287,6 +313,13 @@ export default function DefinicionCampos() {
     setFieldDefinitions(newDefinitions)
   }
 
+  // Actualizar si un campo permite valores nulos
+  const toggleAllowNull = (index: number) => {
+    const newDefinitions = [...fieldDefinitions]
+    newDefinitions[index].allowNull = !newDefinitions[index].allowNull
+    setFieldDefinitions(newDefinitions)
+  }
+
   // Prevalidar los campos
   const handlePrevalidate = () => {
     setValidationStatus("validating")
@@ -295,6 +328,11 @@ export default function DefinicionCampos() {
     setTimeout(() => {
       const newDefinitions = [...fieldDefinitions]
       const messages: string[] = []
+      
+      // Validar que el nombre del archivo no esté vacío
+      if (!fileName.trim()) {
+        messages.push("El nombre del archivo es obligatorio.")
+      }
       
       // Validar nombres internos únicos
       const internalNames = newDefinitions.map(d => d.internalName)
@@ -336,85 +374,6 @@ export default function DefinicionCampos() {
     setActiveField(activeField === index ? null : index)
   }
 
-  // Guardar configuración como borrador
-  const saveDraft = () => {
-    try {
-      const newDraft = {
-        id: Date.now().toString(),
-        name: draftName || `Borrador ${savedDrafts.length + 1}`,
-        date: new Date().toLocaleString(),
-        data: {
-          fieldDefinitions,
-          autoDetect
-        }
-      }
-      
-      const updatedDrafts = [...savedDrafts, newDraft]
-      localStorage.setItem('fieldMappingDrafts', JSON.stringify(updatedDrafts))
-      setSavedDrafts(updatedDrafts)
-      setShowDraftDialog(false)
-      setDraftName("")
-      
-      toast({
-        title: "Borrador guardado",
-        description: `Se ha guardado "${newDraft.name}" correctamente.`,
-      })
-    } catch (error) {
-      console.error('Error saving draft:', error)
-      toast({
-        title: "Error al guardar",
-        description: "No se pudo guardar el borrador. Inténtalo de nuevo.",
-        variant: "destructive"
-      })
-    }
-  }
-  
-  // Cargar un borrador guardado
-  const loadDraft = (draftId: string) => {
-    try {
-      const draft = savedDrafts.find(d => d.id === draftId)
-      if (draft) {
-        setFieldDefinitions(draft.data.fieldDefinitions)
-        setAutoDetect(draft.data.autoDetect)
-        setShowLoadDraftDialog(false)
-        
-        toast({
-          title: "Borrador cargado",
-          description: `Se ha cargado "${draft.name}" correctamente.`,
-        })
-      }
-    } catch (error) {
-      console.error('Error loading draft:', error)
-      toast({
-        title: "Error al cargar",
-        description: "No se pudo cargar el borrador. Inténtalo de nuevo.",
-        variant: "destructive"
-      })
-    }
-  }
-  
-  // Eliminar un borrador guardado
-  const deleteDraft = (draftId: string, event: React.MouseEvent) => {
-    event.stopPropagation()
-    try {
-      const updatedDrafts = savedDrafts.filter(d => d.id !== draftId)
-      localStorage.setItem('fieldMappingDrafts', JSON.stringify(updatedDrafts))
-      setSavedDrafts(updatedDrafts)
-      
-      toast({
-        title: "Borrador eliminado",
-        description: "El borrador ha sido eliminado correctamente.",
-      })
-    } catch (error) {
-      console.error('Error deleting draft:', error)
-      toast({
-        title: "Error al eliminar",
-        description: "No se pudo eliminar el borrador. Inténtalo de nuevo.",
-        variant: "destructive"
-      })
-    }
-  }
-
   return (
     <div className="py-6">
       <Toaster />
@@ -446,28 +405,6 @@ export default function DefinicionCampos() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        
-        {/* Botón de borradores */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
-              <Save className="h-4 w-4" />
-              <span className="hidden sm:inline">Borradores</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Gestionar borradores</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowDraftDialog(true)}>
-              <Save className="h-4 w-4 mr-2" />
-              Guardar configuración actual
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowLoadDraftDialog(true)}>
-              <Clock className="h-4 w-4 mr-2" />
-              Cargar borrador guardado
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
       
       {/* Barra de progreso */}
@@ -487,92 +424,47 @@ export default function DefinicionCampos() {
           <p className="text-muted-foreground">Define el tipo de dato, rango y opciones de anonimización para cada campo</p>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-6">
-          {/* Panel de configuración */}
-          <div className="md:col-span-1 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Opciones</CardTitle>
-                <CardDescription>
-                  Configura las opciones de definición de campos
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="auto-detect" 
-                    checked={autoDetect}
-                    onCheckedChange={setAutoDetect}
-                  />
-                  <Label htmlFor="auto-detect">Detección automática de tipos</Label>
-                </div>
-                
-                <div className="pt-4">
-                  <h3 className="text-sm font-medium mb-2">Resumen</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Campos detectados:</span>
-                      <span>{fieldDefinitions.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Campos anonimizados:</span>
-                      <span>{fieldDefinitions.filter(d => d.anonymize).length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Campos omitidos:</span>
-                      <span>{fieldDefinitions.filter(d => d.omit).length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Campos con rango:</span>
-                      <span>{fieldDefinitions.filter(d => d.range).length}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  onClick={handlePrevalidate} 
-                  className="w-full gap-2"
-                  disabled={validationStatus === "validating"}
-                  variant="outline"
-                >
-                  {validationStatus === "validating" ? (
-                    <>Validando...</>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4" />
-                      Prevalidar
-                    </>
-                  )}
-                </Button>
-              </CardFooter>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Tipos de Datos</CardTitle>
-                <CardDescription>
-                  Tipos de datos disponibles
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {dataTypes.map((type) => (
-                    <div key={type.id} className="flex items-center justify-between text-sm p-2 rounded-md hover:bg-muted">
-                      <div className="flex items-center gap-2">
-                        <FileType className="h-4 w-4 text-muted-foreground" />
-                        <span>{type.name}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{type.id}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          
+        {/* Información del archivo */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Información del Archivo</CardTitle>
+            <CardDescription>
+              Proporciona un nombre y descripción para este archivo
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="file-name">Nombre de la plantilla <span className="text-red-500">*</span></Label>
+                <Input
+                  id="file-name"
+                  placeholder="Ej: Datos pacientes oncológicos 2023"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Un nombre claro y descriptivo para identificar esta plantilla
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="file-description">Descripción</Label>
+                <Input
+                  id="file-description"
+                  placeholder="Ej: Datos de seguimiento de pacientes del departamento de oncología"
+                  value={fileDescription}
+                  onChange={(e) => setFileDescription(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Una breve descripción del contenido o propósito del archivo
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid md:grid-cols-1 gap-6">
           {/* Tabla de definición de campos */}
-          <div className="md:col-span-3">
+          <div className="md:col-span-1">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -609,6 +501,7 @@ export default function DefinicionCampos() {
                           <TableHead>Rangos</TableHead>
                           <TableHead className="w-[100px]">Anonimizar</TableHead>
                           <TableHead className="w-[100px]">Omitir</TableHead>
+                          <TableHead className="w-[100px]">Dato null</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -697,6 +590,25 @@ export default function DefinicionCampos() {
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p>Omitir este campo completamente</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-center">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center">
+                                        <Checkbox 
+                                          checked={field.allowNull} 
+                                          onCheckedChange={() => toggleAllowNull(index)}
+                                        />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Permitir valores nulos para este campo</p>
                                     </TooltipContent>
                                   </Tooltip>
                                 </TooltipProvider>
@@ -806,6 +718,15 @@ export default function DefinicionCampos() {
                                 />
                                 <Label htmlFor={`omit-${index}`}>Omitir</Label>
                               </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2 pt-2">
+                              <Checkbox 
+                                id={`allow-null-${index}`}
+                                checked={field.allowNull} 
+                                onCheckedChange={() => toggleAllowNull(index)}
+                              />
+                              <Label htmlFor={`allow-null-${index}`}>Permitir valores nulos</Label>
                             </div>
                           </CardContent>
                         )}
@@ -918,102 +839,50 @@ export default function DefinicionCampos() {
             <ArrowLeft className="h-4 w-4" />
             Anterior
           </Button>
-          <div className={`flex gap-2 ${isMobile ? "flex-col" : ""}`}>
-            <Button 
-              onClick={handlePrevalidate} 
-              variant="outline"
-              className={`gap-2 ${isMobile ? "w-full" : ""}`}
-              disabled={validationStatus === "validating"}
-            >
-              <Check className="h-4 w-4" />
-              Prevalidar
-            </Button>
-            <Button 
-              onClick={handleNext} 
-              className={`gap-2 ${isMobile ? "w-full" : ""}`}
-              disabled={validationStatus === "error"}
-            >
-              Siguiente
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button 
+            onClick={handleNext} 
+            className={`gap-2 ${isMobile ? "w-full" : ""}`}
+            disabled={validationStatus === "error"}
+          >
+            Siguiente
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
-
-      {/* Diálogo para guardar borrador */}
-      <Dialog open={showDraftDialog} onOpenChange={setShowDraftDialog}>
+      
+      {/* Diálogo de confirmación */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Guardar como borrador</DialogTitle>
+            <DialogTitle>Confirmar detalles de la plantilla</DialogTitle>
             <DialogDescription>
-              Guarda la configuración actual para continuar más tarde.
+              Por favor, confirma los detalles antes de continuar al siguiente paso.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="draft-name">Nombre del borrador</Label>
-            <Input
-              id="draft-name"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              placeholder="Ej: Configuración de pacientes oncológicos"
-              className="mt-2"
-            />
+          
+          <div className="py-4 space-y-4">
+            <div>
+              <h4 className="text-sm font-medium">Nombre de la plantilla</h4>
+              <p className="mt-1 text-lg">{fileName}</p>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium">Descripción</h4>
+              <p className="mt-1">{fileDescription || <span className="text-muted-foreground italic">(Sin descripción)</span>}</p>
+            </div>
+            
+            <div>
+              <h4 className="text-sm font-medium">Campos definidos</h4>
+              <p className="mt-1">{fieldDefinitions.length} campos configurados</p>
+            </div>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDraftDialog(false)}>Cancelar</Button>
-            <Button onClick={saveDraft}>Guardar borrador</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Diálogo para cargar borrador */}
-      <Dialog open={showLoadDraftDialog} onOpenChange={setShowLoadDraftDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cargar borrador guardado</DialogTitle>
-            <DialogDescription>
-              Selecciona un borrador para continuar donde lo dejaste.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 max-h-[300px] overflow-auto">
-            {savedDrafts.length > 0 ? (
-              <div className="space-y-2">
-                {savedDrafts.map((draft) => (
-                  <div 
-                    key={draft.id} 
-                    className="p-3 border rounded-md hover:bg-muted/50 cursor-pointer flex justify-between items-center"
-                    onClick={() => loadDraft(draft.id)}
-                  >
-                    <div>
-                      <div className="font-medium">{draft.name}</div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {draft.date}
-                      </div>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={(e) => deleteDraft(draft.id, e)}
-                    >
-                      <span className="sr-only">Eliminar</span>
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No hay borradores guardados.</p>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowLoadDraftDialog(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>Cancelar</Button>
+            <Button onClick={handleConfirm}>Confirmar y Aceptar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
-} 
+}
