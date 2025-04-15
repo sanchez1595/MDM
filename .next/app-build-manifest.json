@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/page": [
+    "/ingesta/ingesta-template/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/ingesta/ingesta-template/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -21,20 +21,25 @@
       "static/chunks/main-app.js",
       "static/chunks/app/ingesta/seleccion-template/page.js"
     ],
-    "/ingesta/ingesta-template/page": [
+    "/ingesta/seleccion-fuente/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/ingesta/ingesta-template/page.js"
+      "static/chunks/app/ingesta/seleccion-fuente/page.js"
     ],
-    "/ingesta/validacion/page": [
+    "/ingesta/configuracion-archivo/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/ingesta/validacion/page.js"
+      "static/chunks/app/ingesta/configuracion-archivo/page.js"
     ],
-    "/_not-found/page": [
+    "/ingesta/mapeo-campos/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/ingesta/mapeo-campos/page.js"
+    ],
+    "/ingesta/confirmacion/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/ingesta/confirmacion/page.js"
     ]
   }
 }

@@ -167,7 +167,6 @@ const summaryData = {
 
 export default function ConfirmacionGuardado() {
   const router = useRouter()
-  const [createNewVersion, setCreateNewVersion] = useState(true)
   const [saveAsTemplate, setSaveAsTemplate] = useState(false)
   const [templateName, setTemplateName] = useState("")
   const [isSaving, setIsSaving] = useState(false)
@@ -381,11 +380,7 @@ export default function ConfirmacionGuardado() {
                     <Label className="text-muted-foreground text-xs">Versión</Label>
                     <div className="font-medium flex items-center gap-2">
                       <Tag className="h-4 w-4 text-muted-foreground" />
-                      {createNewVersion ? summaryData.newVersion : summaryData.currentVersion} {createNewVersion && (
-                        <Badge variant="outline" className="text-xs">
-                          Nueva
-                        </Badge>
-                      )}
+                      {summaryData.currentVersion}
                     </div>
                   </div>
                   
@@ -668,22 +663,6 @@ export default function ConfirmacionGuardado() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="flex items-start space-x-2">
-                    <Checkbox 
-                      id="create-version" 
-                      checked={createNewVersion}
-                      onCheckedChange={(checked) => setCreateNewVersion(!!checked)}
-                    />
-                    <div className="grid gap-1 leading-none">
-                      <Label htmlFor="create-version">
-                        Crear nueva versión del dataset
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Versión {summaryData.newVersion} (actual: {summaryData.currentVersion})
-                      </p>
-                    </div>
-                  </div>
-                  
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
                       <Label htmlFor="overwrite-toggle">

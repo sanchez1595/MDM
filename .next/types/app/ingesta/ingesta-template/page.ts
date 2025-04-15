@@ -1,4 +1,4 @@
-// File: /Users/zamircantillosanchez/Proyectos/IQVIA/app/ingesta/ingesta-template/page.tsx
+// File: /Users/zamir.cantillo/Documents/borar/MDM/app/ingesta/ingesta-template/page.tsx
 import * as entry from '../../../../../app/ingesta/ingesta-template/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
